@@ -15,8 +15,12 @@ RUN git clone --depth 1 --branch sf_17.1 \
 
 WORKDIR /opt/Stockfish/src
 # Compile Stockfish using the UBI's g++
-# Ensure ARCH matches your TARGETPLATFORM for the app
-RUN make build ARCH=armv8 # Or x86-64-bmi2 if your app is on x86-64
+# Detect architecture and build appropriate version
+RUN if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then \
+        make build ARCH=armv8; \
+    else \
+        make build ARCH=x86-64-modern; \
+    fi
 
 # Stage 2: Build your Quarkus application and include Stockfish
 FROM registry.access.redhat.com/ubi9/openjdk-21:1.21
