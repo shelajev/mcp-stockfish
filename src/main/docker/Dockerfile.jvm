@@ -1,12 +1,13 @@
 # Your App's Dockerfile (e.g., Dockerfile.jvm)
 #
 # Stage 1: Build Stockfish in a UBI-compatible environment
-FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/ubi-minimal:latest AS stockfish_builder
+FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/ubi-minimal:latest AS builder
 
 ARG TARGETPLATFORM
 # Install build tools for UBI (using microdnf)
 RUN microdnf update -y && \
     microdnf install -y git make gcc-c++ wget ca-certificates && \
+    microdnf install -y ninja-build meson clang && \
     microdnf clean all
 
 WORKDIR /opt
@@ -22,19 +23,41 @@ RUN if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then \
         make build ARCH=x86-64-modern; \
     fi
 
+# lc0
+RUN git clone -b release/0.31 --recurse-submodules \
+        https://github.com/LeelaChessZero/lc0.git /lc0
+WORKDIR /lc0
+
+RUN ./build.sh && \
+    strip build/release/lc0
+
 # Stage 2: Build your Quarkus application and include Stockfish
 FROM registry.access.redhat.com/ubi9/openjdk-21:1.21
 
 USER root
 RUN microdnf update -y && \
-    microdnf install -y expect && \
+    microdnf install -y expect zlib libstdc++ libatomic && \
     microdnf clean all
 
+# Ensure the unversioned libz.so symlink exists
+RUN ln -s /usr/lib64/libz.so.1 /usr/lib64/libz.so
+
+# Run ldconfig to update the dynamic linker cache (good practice after adding symlinks)
+RUN ldconfig
+
+ENV LD_LIBRARY_PATH=/usr/lib64:${LD_LIBRARY_PATH}
 
 # Copy Stockfish from the builder stage
-COPY --from=stockfish_builder /opt/Stockfish/src/stockfish /usr/local/bin/stockfish
+COPY --from=builder /opt/Stockfish/src/stockfish /usr/local/bin/stockfish
 # Copy CA bundle for NNUE if needed
-COPY --from=stockfish_builder /etc/pki/tls/certs/ca-bundle.crt /etc/pki/tls/certs/ca-bundle.crt
+COPY --from=builder /etc/pki/tls/certs/ca-bundle.crt /etc/pki/tls/certs/ca-bundle.crt
+
+# copy lc0
+COPY --from=builder /lc0/build/release/lc0 /usr/local/bin/lc0
+
+# download the maia weights
+RUN mkdir /maia && \
+    for i in {1100..1900..100}; do curl -L -o /maia/maia-${i}.pb.gz "https://github.com/CSSLab/maia-chess/releases/download/v1.0/maia-${i}.pb.gz"; done
 
 # --- Your existing Quarkus app layers ---
 ENV LANGUAGE='en_US:en'
