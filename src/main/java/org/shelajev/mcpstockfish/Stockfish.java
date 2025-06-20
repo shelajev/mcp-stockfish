@@ -34,10 +34,12 @@ public class Stockfish {
         return stockfishOutput;
     }
 
+    record Eval(String fen, String eval) {}
+
     @Tool(description = "Analyze a sequence of chess moves and return evaluations for each position.")
     ToolResponse analyzeGame(@ToolArg(description = "List of chess moves in SAN notation") List<String> moves) {
         // Configuration parameters
-        List<String> evaluations = new ArrayList<>();
+        List<Eval> evaluations = new ArrayList<>();
 
         // Validate input
         if (moves == null || moves.isEmpty()) {
@@ -59,7 +61,8 @@ public class Stockfish {
 
 
                 String eval = extractEvaluation(output);
-                evaluations.add(eval);
+                var evaluation = new Eval(fen, eval);
+                evaluations.add(evaluation);
             }
 
             // Add a summary of all evaluations

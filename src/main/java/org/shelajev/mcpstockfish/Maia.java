@@ -21,7 +21,7 @@ public class Maia {
         int bucket = Math.max(1100, Math.min(1900, ((rating + 50) / 100) * 100));
 
         String command = """
-                expect -c "spawn lc0 --weights=/maia/maia-%d.pb.gz; send \\"uci\\r\\"; send \\"position fen %s\\r\\"; send \\"go nodes 1\\r\\"; sleep 1; send \\"quit\\r\\"; interact"
+                expect -c "spawn lc0 --weights=/maia/maia-%d.pb.gz; send \\"uci\\r\\"; expect \\"uciok\\"; send \\"position fen %s\\r\\"; send \\"go nodes 1\\r\\"; sleep 1; send \\"quit\\r\\"; interact"
                 """.formatted(bucket, fen);
         String output = $(command).get();
         String result = output.lines().filter(line -> line.contains("bestmove")).collect(Collectors.joining("\n"));
