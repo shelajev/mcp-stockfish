@@ -19,6 +19,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import static java.util.stream.Collectors.toList;
+
 @Singleton
 public class Lichess {
 
@@ -44,7 +46,7 @@ public class Lichess {
                         .finished()
                         .lastFen(true);
             });
-            var returnMe = games.stream().toList();
+            var returnMe = games.stream().collect(toList());
             return ToolResponse.success(
                     new TextContent(returnMe.toString()));
         }
@@ -61,7 +63,7 @@ public class Lichess {
                         .lastFen(true)
                         .finished();
             });
-            var returnMe = games.stream().toList();
+            var returnMe = games.stream().collect(toList());
             Collections.shuffle(returnMe);
             if(returnMe.isEmpty()) {
                 return ToolResponse.success(
