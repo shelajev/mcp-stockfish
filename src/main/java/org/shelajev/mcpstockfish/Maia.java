@@ -13,6 +13,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -46,7 +48,7 @@ public class Maia {
         command.add("--no-use-amp");
 
         String checkpoint = System.getenv("MAIA3_CHECKPOINT");
-        if (checkpoint != null && !checkpoint.isBlank()) {
+        if (checkpoint != null && !checkpoint.isBlank() && Files.isReadable(Path.of(checkpoint))) {
             command.add("--checkpoint-path");
             command.add(checkpoint);
             command.add("--local-files-only");

@@ -36,12 +36,14 @@ docker build \
   --build-arg STOCKFISH_REF=sf_18 \
   --build-arg MAIA3_REF=main \
   --build-arg MAIA3_MODEL=maia3-5m \
+  --build-arg MAIA3_BAKE_CHECKPOINT=true \
   --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu \
+  --build-arg TORCH_PYPI_FALLBACK=false \
   -f src/main/docker/Dockerfile.jvm \
   -t shelajev/mcp-chess:0.0.1 .
 ```
 
-To try the larger Maia3 model, build with `--build-arg MAIA3_MODEL=maia3-79m`. The image uses the PyTorch CPU wheel index by default to avoid pulling CUDA packages into a Cloud Run image. The Java tool reads `MAIA3_MODEL`, `MAIA3_CHECKPOINT`, `MAIA3_DEVICE`, `MAIA3_UCI`, and `MAIA3_TIMEOUT_SECONDS` at runtime, so the model command can be tuned without changing the source.
+To try the larger Maia3 model, build with `--build-arg MAIA3_MODEL=maia3-79m`. The image uses the PyTorch CPU wheel index by default to avoid pulling CUDA packages into a Cloud Run image. `TORCH_PYPI_FALLBACK=true` can help in restricted build environments, but it may produce a much larger image. `MAIA3_BAKE_CHECKPOINT=false` skips baking the Hugging Face checkpoint; Maia3 will then download its model at runtime unless you provide `MAIA3_CHECKPOINT`. The Java tool reads `MAIA3_MODEL`, `MAIA3_CHECKPOINT`, `MAIA3_DEVICE`, `MAIA3_UCI`, and `MAIA3_TIMEOUT_SECONDS` at runtime, so the model command can be tuned without changing the source.
 
 ## Running the Container
 
