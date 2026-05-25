@@ -21,6 +21,12 @@ steps:
   - name: gcr.io/cloud-builders/docker
     args:
       - build
+      - --platform
+      - linux/amd64
+      - --build-arg
+      - TARGETPLATFORM=linux/amd64
+      - --build-arg
+      - TARGETARCH=amd64
       - --build-arg
       - STOCKFISH_REF=${_STOCKFISH_REF}
       - --build-arg

@@ -1,8 +1,9 @@
 # Stage 1: Install Stockfish from the official release archive.
+ARG TARGETPLATFORM=linux/amd64
 FROM --platform=$TARGETPLATFORM debian:bookworm-slim AS builder
 
 ARG TARGETPLATFORM
-ARG TARGETARCH
+ARG TARGETARCH=amd64
 ARG STOCKFISH_REF=sf_18
 ARG STOCKFISH_RELEASE_ASSET=stockfish-ubuntu-x86-64.tar
 RUN apt-get update && \
