@@ -55,7 +55,7 @@ RUN python3 -m venv /opt/maia3-venv && \
     /opt/maia3-venv/bin/pip install --no-cache-dir "https://github.com/CSSLab/maia3/archive/${MAIA3_REF}.tar.gz" && \
     mkdir -p /maia3 && \
     if [ "${MAIA3_BAKE_CHECKPOINT}" = "true" ]; then \
-        HF_HUB_DISABLE_XET=1 MAIA3_MODEL="${MAIA3_MODEL}" /opt/maia3-venv/bin/python -c "import os, shutil; from huggingface_hub import hf_hub_download; from maia3.model_registry import resolve_model_spec; spec = resolve_model_spec(os.environ['MAIA3_MODEL']); path = hf_hub_download(repo_id=spec.repo_id, filename=spec.checkpoint_filename, local_dir='/maia3'); shutil.copyfile(path, '/maia3/model.pt')"; \
+        HF_HUB_DISABLE_XET=1 MAIA3_MODEL="${MAIA3_MODEL}" /opt/maia3-venv/bin/python -c "import os, shutil; from huggingface_hub import hf_hub_download; from maia3.model_registry import resolve_model_spec; spec = resolve_model_spec(os.environ['MAIA3_MODEL']); path = hf_hub_download(repo_id=spec.repo_id, filename=spec.checkpoint_filename, local_dir='/maia3'); target = '/maia3/model.pt'; shutil.move(path, target) if os.path.abspath(path) != target else None; shutil.rmtree('/root/.cache/huggingface', ignore_errors=True)"; \
     fi
 
 # --- Your existing Quarkus app layers ---
