@@ -6,7 +6,7 @@ substitutions:
   _STOCKFISH_RELEASE_ASSET: stockfish-ubuntu-x86-64.tar
   _MAIA3_REF: main
   _MAIA3_MODEL: maia3-79m
-  _MEMORY: 4Gi
+  _MEMORY: 2Gi
   _CPU: "2"
   _CONCURRENCY: "2"
   _TIMEOUT: 60s

@@ -145,7 +145,7 @@ gcloud builds submit --tag REGION-docker.pkg.dev/PROJECT/REPOSITORY/mcp-chess:la
 gcloud run deploy mcp-chess \
   --image REGION-docker.pkg.dev/PROJECT/REPOSITORY/mcp-chess:latest \
   --region REGION \
-  --memory 4Gi \
+  --memory 2Gi \
   --cpu 2 \
   --concurrency 2 \
   --timeout 60s \
@@ -155,7 +155,7 @@ gcloud run deploy mcp-chess \
 Recommended Cloud Run settings:
 
 - Keep concurrency low. Stockfish is CPU-bound and each request starts an engine process; Maia keeps one warm Python process per instance and serializes Maia calls.
-- Use at least 2 CPU and 4 GiB memory for Stockfish plus the default Maia3 79M model. If this proves too heavy, rebuild with `MAIA3_MODEL=maia3-5m` and reduce memory after testing.
+- Try 2 CPU and 2 GiB memory first for Stockfish plus the default Maia3 79M model. Raise memory to 3 GiB or 4 GiB only if Cloud Run reports OOMs or Maia cold-start failures.
 - Treat the service as stateless. The container has Stockfish, Maia3, and the selected Maia3 checkpoint baked into the image.
 - Consider authentication before exposing it publicly; the tools can consume external Lichess quota and CPU.
 
