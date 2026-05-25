@@ -8,6 +8,12 @@ The server uses the Quarkiverse MCP HTTP transport. The Streamable HTTP endpoint
 http://localhost:8080/mcp
 ```
 
+The current deployed Cloud Run endpoint is:
+
+```text
+https://mcp-chess-54127830651.europe-central2.run.app/mcp
+```
+
 ## Prerequisites
 
 - Java 25 or later (required for building the application)
@@ -116,7 +122,38 @@ Connect an MCP client that supports Streamable HTTP to:
 http://localhost:8080/mcp
 ```
 
+For the deployed Cloud Run service, use:
+
+```text
+https://mcp-chess-54127830651.europe-central2.run.app/mcp
+```
+
 This project no longer includes the stdio transport. It also does not require the old SSE transport endpoint for normal MCP access.
+
+Do not test the MCP endpoint by opening it in a browser. MCP over HTTP uses JSON-RPC `POST` requests and session headers, so a browser `GET /mcp` is not a valid request.
+
+Test with MCP Inspector:
+
+```shell
+npx -y @modelcontextprotocol/inspector \
+  --cli \
+  --transport http \
+  https://mcp-chess-54127830651.europe-central2.run.app/mcp \
+  --method tools/list
+```
+
+Test Maia3 through MCP Inspector:
+
+```shell
+npx -y @modelcontextprotocol/inspector \
+  --cli \
+  --transport http \
+  https://mcp-chess-54127830651.europe-central2.run.app/mcp \
+  --method tools/call \
+  --tool-name whatMoveWouldHumanPlay \
+  --tool-arg fen='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' \
+  --tool-arg rating=1500
+```
 
 ## Deploying to Cloud Run
 
@@ -145,6 +182,7 @@ gcloud builds submit --tag REGION-docker.pkg.dev/PROJECT/REPOSITORY/mcp-chess:la
 gcloud run deploy mcp-chess \
   --image REGION-docker.pkg.dev/PROJECT/REPOSITORY/mcp-chess:latest \
   --region REGION \
+  --allow-unauthenticated \
   --memory 2Gi \
   --cpu 2 \
   --concurrency 2 \
@@ -158,6 +196,8 @@ Recommended Cloud Run settings:
 - Try 2 CPU and 2 GiB memory first for Stockfish plus the default Maia3 79M model. Raise memory to 3 GiB or 4 GiB only if Cloud Run reports OOMs or Maia cold-start failures.
 - Treat the service as stateless. The container has Stockfish, Maia3, and the selected Maia3 checkpoint baked into the image.
 - Consider authentication before exposing it publicly; the tools can consume external Lichess quota and CPU.
+
+The checked-in `cloudbuild.yaml` deploys with `--allow-unauthenticated` so MCP clients can reach the endpoint without Google identity tokens. If you remove that flag, clients must send a valid Cloud Run identity token in the `Authorization` header before MCP traffic reaches the server.
 
 Maia3 is started lazily and kept as a warm UCI process inside each Cloud Run instance. Calls to the Maia tool are serialized per instance so multiple HTTP requests do not interleave commands on the same Python process. This is compatible with Cloud Run: the process lives as long as the container instance lives, and it is shut down when the instance is terminated. If you want consistently warm Maia latency, configure `--min-instances`; otherwise the first Maia request on a cold instance pays the model load cost.
 
