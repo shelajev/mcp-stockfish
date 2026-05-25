@@ -139,10 +139,12 @@ gcloud run deploy mcp-chess \
 
 Recommended Cloud Run settings:
 
-- Keep concurrency low. Stockfish and Maia analysis are CPU-bound and each request starts an engine process.
+- Keep concurrency low. Stockfish is CPU-bound and each request starts an engine process; Maia keeps one warm Python process per instance and serializes Maia calls.
 - Use at least 2 CPU and 2 GiB memory for Stockfish plus the default Maia3 5M model. Raise memory for Maia3 79M or if you see OOMs during Maia calls.
 - Treat the service as stateless. The container has Stockfish, Maia3, and the selected Maia3 checkpoint baked into the image.
 - Consider authentication before exposing it publicly; the tools can consume external Lichess quota and CPU.
+
+Maia3 is started lazily and kept as a warm UCI process inside each Cloud Run instance. Calls to the Maia tool are serialized per instance so multiple HTTP requests do not interleave commands on the same Python process. This is compatible with Cloud Run: the process lives as long as the container instance lives, and it is shut down when the instance is terminated. If you want consistently warm Maia latency, configure `--min-instances`; otherwise the first Maia request on a cold instance pays the model load cost.
 
 ## Available Tools
 

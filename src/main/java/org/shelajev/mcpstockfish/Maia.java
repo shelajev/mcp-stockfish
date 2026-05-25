@@ -5,6 +5,7 @@ import io.quarkiverse.mcp.server.TextContent;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
+import jakarta.annotation.PreDestroy;
 import jakarta.inject.Singleton;
 
 import java.io.BufferedReader;
@@ -24,6 +25,12 @@ import java.util.concurrent.TimeUnit;
 @Singleton
 public class Maia {
 
+    private final Object engineLock = new Object();
+    private Process process;
+    private BufferedWriter writer;
+    private BufferedReader reader;
+    private boolean initialized;
+
     @Tool(description = "You have the Maia3 engine to analyze a chess position. Maia3 returns human-like moves rather than the engine-best move. You can set the Elo conditioning strength.")
     ToolResponse whatMoveWouldHumanPlay(@ToolArg(description = "FEN of the position to analyse") String fen,
                               @ToolArg(description = "Elo rating to condition Maia3 with, from 0 to 5000") int rating) {
@@ -35,10 +42,39 @@ public class Maia {
         }
     }
 
-    private static String runMaia3(String fen, int rating) throws IOException, InterruptedException {
+    private String runMaia3(String fen, int rating) throws IOException, InterruptedException {
         int elo = Math.max(0, Math.min(5000, rating));
         int timeoutSeconds = Integer.parseInt(System.getenv().getOrDefault("MAIA3_TIMEOUT_SECONDS", "60"));
+        synchronized (engineLock) {
+            try {
+                return runWithPersistentEngine(fen, elo, timeoutSeconds);
+            } catch (IOException | InterruptedException e) {
+                stopEngine();
+                throw e;
+            }
+        }
+    }
 
+    private String runWithPersistentEngine(String fen, int elo, int timeoutSeconds) throws IOException, InterruptedException {
+        StringBuilder output = new StringBuilder();
+        Instant deadline = Instant.now().plus(Duration.ofSeconds(timeoutSeconds));
+
+        ensureEngine(output, deadline);
+
+        send(writer, "setoption name Elo value " + elo);
+        send(writer, "position fen " + fen);
+        send(writer, "go");
+        readUntil(reader, output, "bestmove", deadline);
+
+        return output.toString();
+    }
+
+    private void ensureEngine(StringBuilder output, Instant deadline) throws IOException, InterruptedException {
+        if (process != null && process.isAlive() && initialized) {
+            return;
+        }
+
+        stopEngine();
         List<String> command = new ArrayList<>();
         command.add(System.getenv().getOrDefault("MAIA3_UCI", "maia3-uci"));
         command.add("--model");
@@ -54,32 +90,15 @@ public class Maia {
             command.add("--local-files-only");
         }
 
-        Process process = new ProcessBuilder(command)
+        process = new ProcessBuilder(command)
                 .redirectErrorStream(true)
                 .start();
+        writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
+        reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
 
-        StringBuilder output = new StringBuilder();
-        Instant deadline = Instant.now().plus(Duration.ofSeconds(timeoutSeconds));
-
-        try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
-             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-
-            send(writer, "uci");
-            readUntil(reader, output, "uciok", deadline);
-
-            send(writer, "setoption name Elo value " + elo);
-            send(writer, "position fen " + fen);
-            send(writer, "go");
-            readUntil(reader, output, "bestmove", deadline);
-
-            send(writer, "quit");
-        } finally {
-            if (!process.waitFor(2, TimeUnit.SECONDS)) {
-                process.destroyForcibly();
-            }
-        }
-
-        return output.toString();
+        send(writer, "uci");
+        readUntil(reader, output, "uciok", deadline);
+        initialized = true;
     }
 
     private static void send(BufferedWriter writer, String command) throws IOException {
@@ -104,5 +123,53 @@ public class Maia {
             }
         }
         throw new IOException("Timed out waiting for Maia3 to emit " + expected);
+    }
+
+    @PreDestroy
+    void stopEngine() {
+        synchronized (engineLock) {
+            initialized = false;
+            closeWriter();
+            closeReader();
+            if (process != null) {
+                if (process.isAlive()) {
+                    process.destroy();
+                    try {
+                        if (!process.waitFor(2, TimeUnit.SECONDS)) {
+                            process.destroyForcibly();
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        process.destroyForcibly();
+                    }
+                }
+                process = null;
+            }
+        }
+    }
+
+    private void closeWriter() {
+        if (writer == null) {
+            return;
+        }
+        try {
+            send(writer, "quit");
+            writer.close();
+        } catch (IOException ignored) {
+        } finally {
+            writer = null;
+        }
+    }
+
+    private void closeReader() {
+        if (reader == null) {
+            return;
+        }
+        try {
+            reader.close();
+        } catch (IOException ignored) {
+        } finally {
+            reader = null;
+        }
     }
 }
