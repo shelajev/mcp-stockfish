@@ -64,6 +64,7 @@ steps:
       - ${_REGION}
       - --platform
       - managed
+      - --allow-unauthenticated
       - --memory
       - ${_MEMORY}
       - --cpu
