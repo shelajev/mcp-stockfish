@@ -2,13 +2,70 @@
 
 This project provides a Model Context Protocol (MCP) server for chess tools over HTTP. It exposes Stockfish analysis, Maia human-like move prediction, Lichess game lookup, and FEN board rendering.
 
-The server uses the Quarkiverse MCP HTTP transport. The Streamable HTTP endpoint is:
+## Quick Start
+
+### Try It Now - Public Cloud Run Instance
+
+No installation is needed. Connect an MCP client that supports Streamable HTTP to the hosted Cloud Run instance:
+
+**MCP endpoint**
+
+```text
+https://mcp-chess-54127830651.europe-central2.run.app/mcp
+```
+
+**Claude Desktop config** (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "mcp-chess": {
+      "url": "https://mcp-chess-54127830651.europe-central2.run.app/mcp"
+    }
+  }
+}
+```
+
+Restart Claude Desktop, then ask chess questions like:
+
+- "What is the best move in this FEN?"
+- "What move would a 1500-rated human likely play here?"
+- "Show this FEN as a board."
+
+**Smoke test with MCP Inspector**
+
+```shell
+npx -y @modelcontextprotocol/inspector \
+  --cli \
+  --transport http \
+  https://mcp-chess-54127830651.europe-central2.run.app/mcp \
+  --method tools/list
+```
+
+**Smoke test Maia3**
+
+```shell
+npx -y @modelcontextprotocol/inspector \
+  --cli \
+  --transport http \
+  https://mcp-chess-54127830651.europe-central2.run.app/mcp \
+  --method tools/call \
+  --tool-name whatMoveWouldHumanPlay \
+  --tool-arg fen='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' \
+  --tool-arg rating=1500
+```
+
+Do not test the MCP endpoint by opening it in a browser. MCP over HTTP uses JSON-RPC `POST` requests and session headers, so a browser `GET /mcp` is not a valid request.
+
+## HTTP Endpoint
+
+The server uses the Quarkiverse MCP HTTP transport. The local Streamable HTTP endpoint is:
 
 ```text
 http://localhost:8080/mcp
 ```
 
-The current deployed Cloud Run endpoint is:
+The public Cloud Run endpoint is:
 
 ```text
 https://mcp-chess-54127830651.europe-central2.run.app/mcp
@@ -116,13 +173,13 @@ The expected tool list is `boardFromFen`, `findBestMove`, `lastGames`, `randomGa
 
 ## Connecting to the Server
 
-Connect an MCP client that supports Streamable HTTP to:
+Local MCP endpoint:
 
-```
+```text
 http://localhost:8080/mcp
 ```
 
-For the deployed Cloud Run service, use:
+Public Cloud Run MCP endpoint:
 
 ```text
 https://mcp-chess-54127830651.europe-central2.run.app/mcp
@@ -130,30 +187,7 @@ https://mcp-chess-54127830651.europe-central2.run.app/mcp
 
 This project no longer includes the stdio transport. It also does not require the old SSE transport endpoint for normal MCP access.
 
-Do not test the MCP endpoint by opening it in a browser. MCP over HTTP uses JSON-RPC `POST` requests and session headers, so a browser `GET /mcp` is not a valid request.
-
-Test with MCP Inspector:
-
-```shell
-npx -y @modelcontextprotocol/inspector \
-  --cli \
-  --transport http \
-  https://mcp-chess-54127830651.europe-central2.run.app/mcp \
-  --method tools/list
-```
-
-Test Maia3 through MCP Inspector:
-
-```shell
-npx -y @modelcontextprotocol/inspector \
-  --cli \
-  --transport http \
-  https://mcp-chess-54127830651.europe-central2.run.app/mcp \
-  --method tools/call \
-  --tool-name whatMoveWouldHumanPlay \
-  --tool-arg fen='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' \
-  --tool-arg rating=1500
-```
+See [Quick Start](#quick-start) for Claude Desktop and MCP Inspector examples.
 
 ## Deploying to Cloud Run
 
