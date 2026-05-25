@@ -1,6 +1,6 @@
 package org.shelajev.mcpstockfish;
 
-import chariot.util.Board;
+import chariot.chess.Board;
 import io.quarkiverse.mcp.server.TextContent;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
@@ -47,7 +47,7 @@ public class Stockfish {
         }
 
         try {
-            Board board = Board.fromStandardPosition();
+            Board board = Board.ofStandard();
             // Analyze each position after applying moves
             for (int i = 0; i < moves.size(); i++) {
                 board = board.play(moves.get(i));

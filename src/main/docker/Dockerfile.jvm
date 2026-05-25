@@ -11,7 +11,7 @@ RUN microdnf update -y && \
     microdnf clean all
 
 WORKDIR /opt
-RUN git clone --depth 1 --branch sf_17.1 \
+RUN git clone --depth 1 --branch sf_18 \
       https://github.com/official-stockfish/Stockfish.git
 
 WORKDIR /opt/Stockfish/src
@@ -24,7 +24,7 @@ RUN if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then \
     fi
 
 # lc0
-RUN git clone -b release/0.31 --recurse-submodules \
+RUN git clone -b release/0.32 --recurse-submodules \
         https://github.com/LeelaChessZero/lc0.git /lc0
 WORKDIR /lc0
 
@@ -32,15 +32,16 @@ RUN ./build.sh && \
     strip build/release/lc0
 
 # Stage 2: Build your Quarkus application and include Stockfish
-FROM registry.access.redhat.com/ubi9/openjdk-21:1.21
+FROM eclipse-temurin:25-jre
 
 USER root
-RUN microdnf update -y && \
-    microdnf install -y expect zlib libstdc++ libatomic && \
-    microdnf clean all
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends expect zlib1g libstdc++6 libatomic1 curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
 # Ensure the unversioned libz.so symlink exists
-RUN ln -s /usr/lib64/libz.so.1 /usr/lib64/libz.so
+RUN libdir="$(dirname "$(ldconfig -p | awk '/libz.so.1 / {print $NF; exit}')")" && \
+    ln -sf "${libdir}/libz.so.1" "${libdir}/libz.so"
 
 # Run ldconfig to update the dynamic linker cache (good practice after adding symlinks)
 RUN ldconfig
@@ -67,8 +68,9 @@ COPY --chown=185 target/quarkus-app/app/ /deployments/app/
 COPY --chown=185 target/quarkus-app/quarkus/ /deployments/quarkus/
 
 EXPOSE 8080
+RUN useradd --uid 185 --gid 0 --home-dir /deployments --no-create-home quarkus
 USER 185
-ENV JAVA_OPTS_APPEND="-Dquarkus.http.host=0.0.0.0 -Djava.util.logging.manager=org.jboss.logmanager.LogManager"
+ENV JAVA_OPTS_APPEND="-Djava.util.logging.manager=org.jboss.logmanager.LogManager"
 ENV JAVA_APP_JAR="/deployments/quarkus-run.jar"
 
-ENTRYPOINT [ "/opt/jboss/container/java/run/run-java.sh" ]
+ENTRYPOINT [ "sh", "-c", "java $JAVA_OPTS_APPEND $JAVA_OPTS -jar $JAVA_APP_JAR" ]

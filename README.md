@@ -1,10 +1,16 @@
-# MCP Server for Stockfish
+# MCP Server for Chess
 
-This project provides a Model Control Protocol (MCP) server for Stockfish, a powerful open-source chess engine. It allows you to interact with Stockfish through HTTP requests.
+This project provides a Model Context Protocol (MCP) server for chess tools over HTTP. It exposes Stockfish analysis, Maia human-like move prediction, Lichess game lookup, and FEN board rendering.
+
+The server uses the Quarkiverse MCP HTTP transport. The Streamable HTTP endpoint is:
+
+```text
+http://localhost:8080/mcp
+```
 
 ## Prerequisites
 
-- Java 21 or later (required for building the application)
+- Java 25 or later (required for building the application)
 - Docker (required for running the containerized application)
 
 ## Building the Application
@@ -20,17 +26,18 @@ To build the application and create the Docker image:
 This command will:
 1. Compile the Java application
 2. Build the Docker image with Stockfish compiled for the appropriate architecture
-3. Tag the image as `shelajev/mcp-stockfish:0.0.1`
+3. Tag the image as `shelajev/mcp-chess:0.0.1`
 
 ## Running the Container
 
 Once the image is built, you can run it with:
 
 ```shell
-docker run -p8080:8080 shelajev/mcp-stockfish:0.0.1
+docker run -p8080:8080 shelajev/mcp-chess:0.0.1
 ```
 
 or you can use the pre-built version:
+
 ```shell
 docker run -p8080:8080 olegselajev241/mcp-chess:latest
 ```
@@ -39,11 +46,39 @@ This will start the MCP server and expose it on port 8080.
 
 ## Connecting to the Server
 
-You can connect to the MCP server via HTTP at:
+Connect an MCP client that supports Streamable HTTP to:
 
 ```
 http://localhost:8080/mcp
 ```
+
+This project no longer includes the stdio transport. It also does not require the old SSE transport endpoint for normal MCP access.
+
+## Deploying to Cloud Run
+
+This can be deployed to Google Cloud Run meaningfully as an HTTP MCP server. The container binds to `0.0.0.0` and uses the `PORT` environment variable with a local default of `8080`, which matches Cloud Run's container contract.
+
+Build and push an image, then deploy it:
+
+```shell
+gcloud builds submit --tag REGION-docker.pkg.dev/PROJECT/REPOSITORY/mcp-chess:0.0.1
+
+gcloud run deploy mcp-chess \
+  --image REGION-docker.pkg.dev/PROJECT/REPOSITORY/mcp-chess:0.0.1 \
+  --region REGION \
+  --memory 2Gi \
+  --cpu 2 \
+  --concurrency 2 \
+  --timeout 60s \
+  --set-env-vars LICHESS_API_TOKEN=optional-token
+```
+
+Recommended Cloud Run settings:
+
+- Keep concurrency low. Stockfish and Maia analysis are CPU-bound and each request starts an engine process.
+- Use at least 2 CPU and 2 GiB memory for Maia plus Stockfish. Raise memory if you see OOMs during Maia calls.
+- Treat the service as stateless. The container has all engines and Maia weights baked into the image.
+- Consider authentication before exposing it publicly; the tools can consume external Lichess quota and CPU.
 
 ## Available Tools
 

@@ -1,9 +1,9 @@
 package org.shelajev.mcpstockfish;
 
 import chariot.Client;
+import chariot.chess.Board;
 import chariot.model.Game;
 import chariot.model.Many;
-import chariot.util.Board;
 import jakarta.inject.Singleton;
 
 import io.quarkiverse.mcp.server.TextContent;
