@@ -1,0 +1,73 @@
+substitutions:
+  _REGION: us-central1
+  _REPOSITORY: mcp
+  _SERVICE: mcp-chess
+  _STOCKFISH_REF: sf_18
+  _STOCKFISH_RELEASE_ASSET: stockfish-ubuntu-x86-64.tar
+  _MAIA3_REF: main
+  _MAIA3_MODEL: maia3-5m
+  _MEMORY: 2Gi
+  _CPU: "2"
+  _CONCURRENCY: "2"
+  _TIMEOUT: 60s
+
+steps:
+  - name: eclipse-temurin:25-jdk
+    entrypoint: ./mvnw
+    args:
+      - -DskipTests
+      - package
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg
+      - STOCKFISH_REF=${_STOCKFISH_REF}
+      - --build-arg
+      - STOCKFISH_RELEASE_ASSET=${_STOCKFISH_RELEASE_ASSET}
+      - --build-arg
+      - MAIA3_REF=${_MAIA3_REF}
+      - --build-arg
+      - MAIA3_MODEL=${_MAIA3_MODEL}
+      - --build-arg
+      - MAIA3_BAKE_CHECKPOINT=true
+      - --build-arg
+      - TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+      - --build-arg
+      - TORCH_PYPI_FALLBACK=false
+      - -f
+      - src/main/docker/Dockerfile.jvm
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:latest
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:latest
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:latest
+      - --region
+      - ${_REGION}
+      - --platform
+      - managed
+      - --memory
+      - ${_MEMORY}
+      - --cpu
+      - ${_CPU}
+      - --concurrency
+      - ${_CONCURRENCY}
+      - --timeout
+      - ${_TIMEOUT}
+      - --set-env-vars
+      - MAIA3_TIMEOUT_SECONDS=60
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:latest

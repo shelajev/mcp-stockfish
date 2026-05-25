@@ -125,10 +125,25 @@ This can be deployed to Google Cloud Run meaningfully as an HTTP MCP server. The
 Build and push an image, then deploy it:
 
 ```shell
-gcloud builds submit --tag REGION-docker.pkg.dev/PROJECT/REPOSITORY/mcp-chess:0.0.1
+gcloud artifacts repositories create mcp \
+  --repository-format=docker \
+  --location=REGION \
+  --description="MCP chess images"
+
+gcloud builds submit \
+  --config cloudbuild.yaml \
+  --substitutions _REGION=REGION,_REPOSITORY=mcp,_SERVICE=mcp-chess,_MAIA3_MODEL=maia3-5m
+```
+
+The Cloud Build config builds and pushes `REGION-docker.pkg.dev/PROJECT/mcp/mcp-chess:latest`, then deploys it to Cloud Run.
+
+To deploy manually instead:
+
+```shell
+gcloud builds submit --tag REGION-docker.pkg.dev/PROJECT/REPOSITORY/mcp-chess:latest
 
 gcloud run deploy mcp-chess \
-  --image REGION-docker.pkg.dev/PROJECT/REPOSITORY/mcp-chess:0.0.1 \
+  --image REGION-docker.pkg.dev/PROJECT/REPOSITORY/mcp-chess:latest \
   --region REGION \
   --memory 2Gi \
   --cpu 2 \
