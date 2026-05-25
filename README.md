@@ -28,6 +28,15 @@ This command will:
 2. Build the Docker image with Stockfish compiled for the appropriate architecture
 3. Tag the image as `shelajev/mcp-chess:0.0.1`
 
+The Dockerfile pins Stockfish to `sf_18` by default. Override it when a newer stable Stockfish tag is available:
+
+```shell
+docker build \
+  --build-arg STOCKFISH_REF=sf_18 \
+  -f src/main/docker/Dockerfile.jvm \
+  -t shelajev/mcp-chess:0.0.1 .
+```
+
 ## Running the Container
 
 Once the image is built, you can run it with:

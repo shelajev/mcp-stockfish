@@ -4,6 +4,7 @@
 FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/ubi-minimal:latest AS builder
 
 ARG TARGETPLATFORM
+ARG STOCKFISH_REF=sf_18
 # Install build tools for UBI (using microdnf)
 RUN microdnf update -y && \
     microdnf install -y git make gcc-c++ wget ca-certificates && \
@@ -11,7 +12,7 @@ RUN microdnf update -y && \
     microdnf clean all
 
 WORKDIR /opt
-RUN git clone --depth 1 --branch sf_18 \
+RUN git clone --depth 1 --branch "${STOCKFISH_REF}" \
       https://github.com/official-stockfish/Stockfish.git
 
 WORKDIR /opt/Stockfish/src
