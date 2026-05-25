@@ -23,7 +23,7 @@ To build the application:
 ./mvnw package
 ```
 
-The Dockerfile pins Stockfish to `sf_18` and Maia3 to the `maia3-5m` model by default. Build the container for `linux/amd64`, which is the intended Cloud Run target. On Apple Silicon or other non-amd64 hosts, build in Cloud Build or use a Docker setup that can execute amd64 images.
+The Dockerfile pins Stockfish to `sf_18` and Maia3 to the `maia3-79m` model by default. Build the container for `linux/amd64`, which is the intended Cloud Run target. On Apple Silicon or other non-amd64 hosts, build in Cloud Build or use a Docker setup that can execute amd64 images.
 
 Build the image and override versions when needed:
 
@@ -33,7 +33,7 @@ docker build \
   --build-arg STOCKFISH_REF=sf_18 \
   --build-arg STOCKFISH_RELEASE_ASSET=stockfish-ubuntu-x86-64.tar \
   --build-arg MAIA3_REF=main \
-  --build-arg MAIA3_MODEL=maia3-5m \
+  --build-arg MAIA3_MODEL=maia3-79m \
   --build-arg MAIA3_BAKE_CHECKPOINT=true \
   --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu \
   --build-arg TORCH_PYPI_FALLBACK=false \
@@ -41,7 +41,7 @@ docker build \
   -t shelajev/mcp-chess:0.0.1 .
 ```
 
-To try the larger Maia3 model, build with `--build-arg MAIA3_MODEL=maia3-79m`. The image uses the PyTorch CPU wheel index by default to avoid pulling CUDA packages into a Cloud Run image. `TORCH_PYPI_FALLBACK=true` can help in restricted build environments, but it may produce a much larger image. `MAIA3_BAKE_CHECKPOINT=false` skips baking the Hugging Face checkpoint; Maia3 will then download its model at runtime unless you provide `MAIA3_CHECKPOINT`. The Java tool reads `MAIA3_MODEL`, `MAIA3_CHECKPOINT`, `MAIA3_DEVICE`, `MAIA3_UCI`, and `MAIA3_TIMEOUT_SECONDS` at runtime, so the model command can be tuned without changing the source.
+To try the smaller Maia3 model, build with `--build-arg MAIA3_MODEL=maia3-5m`. The image uses the PyTorch CPU wheel index by default to avoid pulling CUDA packages into a Cloud Run image. `TORCH_PYPI_FALLBACK=true` can help in restricted build environments, but it may produce a much larger image. `MAIA3_BAKE_CHECKPOINT=false` skips baking the Hugging Face checkpoint; Maia3 will then download its model at runtime unless you provide `MAIA3_CHECKPOINT`. The Java tool reads `MAIA3_MODEL`, `MAIA3_CHECKPOINT`, `MAIA3_DEVICE`, `MAIA3_UCI`, and `MAIA3_TIMEOUT_SECONDS` at runtime, so the model command can be tuned without changing the source.
 
 ## Running the Container
 
@@ -132,7 +132,7 @@ gcloud artifacts repositories create mcp \
 
 gcloud builds submit \
   --config cloudbuild.yaml \
-  --substitutions _REGION=REGION,_REPOSITORY=mcp,_SERVICE=mcp-chess,_MAIA3_MODEL=maia3-5m
+  --substitutions _REGION=REGION,_REPOSITORY=mcp,_SERVICE=mcp-chess,_MAIA3_MODEL=maia3-79m
 ```
 
 The Cloud Build config builds and pushes `REGION-docker.pkg.dev/PROJECT/mcp/mcp-chess:latest`, then deploys it to Cloud Run.
@@ -145,7 +145,7 @@ gcloud builds submit --tag REGION-docker.pkg.dev/PROJECT/REPOSITORY/mcp-chess:la
 gcloud run deploy mcp-chess \
   --image REGION-docker.pkg.dev/PROJECT/REPOSITORY/mcp-chess:latest \
   --region REGION \
-  --memory 2Gi \
+  --memory 4Gi \
   --cpu 2 \
   --concurrency 2 \
   --timeout 60s \
@@ -155,7 +155,7 @@ gcloud run deploy mcp-chess \
 Recommended Cloud Run settings:
 
 - Keep concurrency low. Stockfish is CPU-bound and each request starts an engine process; Maia keeps one warm Python process per instance and serializes Maia calls.
-- Use at least 2 CPU and 2 GiB memory for Stockfish plus the default Maia3 5M model. Raise memory for Maia3 79M or if you see OOMs during Maia calls.
+- Use at least 2 CPU and 4 GiB memory for Stockfish plus the default Maia3 79M model. If this proves too heavy, rebuild with `MAIA3_MODEL=maia3-5m` and reduce memory after testing.
 - Treat the service as stateless. The container has Stockfish, Maia3, and the selected Maia3 checkpoint baked into the image.
 - Consider authentication before exposing it publicly; the tools can consume external Lichess quota and CPU.
 

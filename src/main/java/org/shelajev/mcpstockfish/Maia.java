@@ -78,7 +78,7 @@ public class Maia {
         List<String> command = new ArrayList<>();
         command.add(System.getenv().getOrDefault("MAIA3_UCI", "maia3-uci"));
         command.add("--model");
-        command.add(System.getenv().getOrDefault("MAIA3_MODEL", "maia3-5m"));
+        command.add(System.getenv().getOrDefault("MAIA3_MODEL", "maia3-79m"));
         command.add("--device");
         command.add(System.getenv().getOrDefault("MAIA3_DEVICE", "cpu"));
         command.add("--no-use-amp");

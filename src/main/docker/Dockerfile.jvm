@@ -25,7 +25,7 @@ RUN if [ "${TARGETARCH}" != "amd64" ]; then \
 FROM eclipse-temurin:25-jre-noble
 
 ARG MAIA3_REF=main
-ARG MAIA3_MODEL=maia3-5m
+ARG MAIA3_MODEL=maia3-79m
 ARG MAIA3_BAKE_CHECKPOINT=true
 ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
 ARG TORCH_PYPI_FALLBACK=false
