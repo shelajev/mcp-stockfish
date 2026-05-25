@@ -15,7 +15,7 @@ http://localhost:8080/mcp
 
 ## Building the Application
 
-The project includes a multi-stage Dockerfile that builds Stockfish as part of the container build process.
+The project includes a multi-stage Dockerfile that builds Stockfish and installs Maia3 as part of the container build process.
 
 To build the application and create the Docker image:
 
@@ -26,16 +26,22 @@ To build the application and create the Docker image:
 This command will:
 1. Compile the Java application
 2. Build the Docker image with Stockfish compiled for the appropriate architecture
-3. Tag the image as `shelajev/mcp-chess:0.0.1`
+3. Install Maia3 and bake the selected Maia3 checkpoint into the image
+4. Tag the image as `shelajev/mcp-chess:0.0.1`
 
-The Dockerfile pins Stockfish to `sf_18` by default. Override it when a newer stable Stockfish tag is available:
+The Dockerfile pins Stockfish to `sf_18` and Maia3 to the `maia3-5m` model by default. Override them when needed:
 
 ```shell
 docker build \
   --build-arg STOCKFISH_REF=sf_18 \
+  --build-arg MAIA3_REF=main \
+  --build-arg MAIA3_MODEL=maia3-5m \
+  --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu \
   -f src/main/docker/Dockerfile.jvm \
   -t shelajev/mcp-chess:0.0.1 .
 ```
+
+To try the larger Maia3 model, build with `--build-arg MAIA3_MODEL=maia3-79m`. The image uses the PyTorch CPU wheel index by default to avoid pulling CUDA packages into a Cloud Run image. The Java tool reads `MAIA3_MODEL`, `MAIA3_CHECKPOINT`, `MAIA3_DEVICE`, `MAIA3_UCI`, and `MAIA3_TIMEOUT_SECONDS` at runtime, so the model command can be tuned without changing the source.
 
 ## Running the Container
 
@@ -85,8 +91,8 @@ gcloud run deploy mcp-chess \
 Recommended Cloud Run settings:
 
 - Keep concurrency low. Stockfish and Maia analysis are CPU-bound and each request starts an engine process.
-- Use at least 2 CPU and 2 GiB memory for Maia plus Stockfish. Raise memory if you see OOMs during Maia calls.
-- Treat the service as stateless. The container has all engines and Maia weights baked into the image.
+- Use at least 2 CPU and 2 GiB memory for Stockfish plus the default Maia3 5M model. Raise memory for Maia3 79M or if you see OOMs during Maia calls.
+- Treat the service as stateless. The container has Stockfish, Maia3, and the selected Maia3 checkpoint baked into the image.
 - Consider authentication before exposing it publicly; the tools can consume external Lichess quota and CPU.
 
 ## Available Tools
@@ -127,7 +133,7 @@ The MCP server provides several tools for chess analysis and interaction with ch
 ### Maia Tools
 
 1. **whatMoveWouldHumanPlay**
-   - Description: Uses the Maia chess engine to predict what move a human player would make in a given position.
+   - Description: Uses the Maia3 chess engine to predict what move a human player would make in a given position.
    - Parameters:
      - `fen`: FEN notation of the chess position to analyze.
-     - `rating`: Rating of the Maia engine to use (from 1100 to 1900).
+     - `rating`: Elo rating to condition Maia3 with (from 0 to 5000).
