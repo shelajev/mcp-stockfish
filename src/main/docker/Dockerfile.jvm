@@ -1,26 +1,25 @@
-# Your App's Dockerfile (e.g., Dockerfile.jvm)
-#
-# Stage 1: Build Stockfish
-FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS builder
+# Stage 1: Install Stockfish from the official release archive.
+FROM --platform=$TARGETPLATFORM debian:bookworm-slim AS builder
 
 ARG TARGETPLATFORM
+ARG TARGETARCH
 ARG STOCKFISH_REF=sf_18
+ARG STOCKFISH_RELEASE_ASSET=stockfish-ubuntu-x86-64.tar
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends git make g++ clang ca-certificates wget && \
+    apt-get install -y --no-install-recommends ca-certificates curl tar && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt
-RUN git clone --depth 1 --branch "${STOCKFISH_REF}" \
-      https://github.com/official-stockfish/Stockfish.git
-
-WORKDIR /opt/Stockfish/src
-# Compile Stockfish using the UBI's g++
-# Detect architecture and build appropriate version
-RUN if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then \
-        make build ARCH=armv8; \
-    else \
-        make build ARCH=x86-64-modern; \
-    fi
+RUN if [ "${TARGETARCH}" != "amd64" ]; then \
+        echo "The Docker image currently packages the official Stockfish Linux amd64 release. Build with --platform linux/amd64 for Cloud Run."; \
+        exit 1; \
+    fi && \
+    curl --fail --location --retry 5 --retry-all-errors \
+      --output stockfish.tar \
+      "https://github.com/official-stockfish/Stockfish/releases/download/${STOCKFISH_REF}/${STOCKFISH_RELEASE_ASSET}" && \
+    tar -xf stockfish.tar && \
+    install -m 0755 "/opt/stockfish/${STOCKFISH_RELEASE_ASSET%.tar}" /usr/local/bin/stockfish && \
+    /usr/local/bin/stockfish bench 1 1 1 default depth
 
 # Stage 2: Build your Quarkus application and include Stockfish and Maia3
 FROM eclipse-temurin:25-jre-noble
@@ -46,7 +45,7 @@ RUN ldconfig
 ENV LD_LIBRARY_PATH=/usr/lib64
 
 # Copy Stockfish from the builder stage
-COPY --from=builder /opt/Stockfish/src/stockfish /usr/local/bin/stockfish
+COPY --from=builder /usr/local/bin/stockfish /usr/local/bin/stockfish
 
 # Install Maia3 and bake the selected checkpoint into the image.
 RUN python3 -m venv /opt/maia3-venv && \

@@ -15,25 +15,23 @@ http://localhost:8080/mcp
 
 ## Building the Application
 
-The project includes a multi-stage Dockerfile that builds Stockfish and installs Maia3 as part of the container build process.
+The project includes a multi-stage Dockerfile that installs the official Stockfish release binary and Maia3 as part of the container build process.
 
-To build the application and create the Docker image:
+To build the application:
 
 ```shell
-./mvnw verify -Dquarkus.container-image.build=true
+./mvnw package
 ```
 
-This command will:
-1. Compile the Java application
-2. Build the Docker image with Stockfish compiled for the appropriate architecture
-3. Install Maia3 and bake the selected Maia3 checkpoint into the image
-4. Tag the image as `shelajev/mcp-chess:0.0.1`
+The Dockerfile pins Stockfish to `sf_18` and Maia3 to the `maia3-5m` model by default. Build the container for `linux/amd64`, which is the intended Cloud Run target. On Apple Silicon or other non-amd64 hosts, build in Cloud Build or use a Docker setup that can execute amd64 images.
 
-The Dockerfile pins Stockfish to `sf_18` and Maia3 to the `maia3-5m` model by default. Override them when needed:
+Build the image and override versions when needed:
 
 ```shell
 docker build \
+  --platform linux/amd64 \
   --build-arg STOCKFISH_REF=sf_18 \
+  --build-arg STOCKFISH_RELEASE_ASSET=stockfish-ubuntu-x86-64.tar \
   --build-arg MAIA3_REF=main \
   --build-arg MAIA3_MODEL=maia3-5m \
   --build-arg MAIA3_BAKE_CHECKPOINT=true \
@@ -60,6 +58,55 @@ docker run -p8080:8080 olegselajev241/mcp-chess:latest
 ```
 
 This will start the MCP server and expose it on port 8080.
+
+## Testing the Image
+
+Build the image for the same platform used by Cloud Run:
+
+```shell
+docker build \
+  --platform linux/amd64 \
+  -f src/main/docker/Dockerfile.jvm \
+  -t mcp-chess:api-test .
+```
+
+Run it locally:
+
+```shell
+docker run --rm -p 8080:8080 mcp-chess:api-test
+```
+
+Initialize an MCP session:
+
+```shell
+SESSION_ID=$(curl -sS -D - -o /tmp/mcp-init.json -X POST http://localhost:8080/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"curl","version":"test"}}}' \
+  | awk -F': ' 'tolower($1)=="mcp-session-id" {gsub("\r","",$2); print $2}')
+```
+
+List the exposed tools:
+
+```shell
+curl -sS -X POST http://localhost:8080/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H "Mcp-Session-Id: $SESSION_ID" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+```
+
+Call Stockfish:
+
+```shell
+curl -sS -X POST http://localhost:8080/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H "Mcp-Session-Id: $SESSION_ID" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"findBestMove","arguments":{"fen":"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}}}'
+```
+
+The expected tool list is `boardFromFen`, `findBestMove`, `lastGames`, `randomGame`, and `whatMoveWouldHumanPlay`.
 
 ## Connecting to the Server
 
@@ -107,11 +154,6 @@ The MCP server provides several tools for chess analysis and interaction with ch
    - Description: Analyzes a chess position using the Stockfish engine to find the best move.
    - Parameters:
      - `fen`: FEN notation of the chess position to analyze.
-
-2. **analyzeGame**
-   - Description: Analyzes a sequence of chess moves and returns evaluations for each position.
-   - Parameters:
-     - `moves`: List of chess moves in SAN (Standard Algebraic Notation).
 
 ### Lichess Tools
 
