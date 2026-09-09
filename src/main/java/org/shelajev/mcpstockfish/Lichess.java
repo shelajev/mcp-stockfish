@@ -16,13 +16,14 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 
 import static java.util.stream.Collectors.toList;
 
 @Singleton
 public class Lichess {
+
+        private static final int MAX_GAMES = 100;
 
         private final Client client;
 
@@ -39,44 +40,58 @@ public class Lichess {
                 @ToolArg(description = "the username to fetch the games") String username,
                 @ToolArg(description = "how many games to fetch") int n) {
 
-            Many<Game> games = client.games().byUserId(username.trim().toLowerCase(), searchFilter -> {
-                searchFilter
-                        .max(n)
+            int max = Math.clamp(n, 1, MAX_GAMES);
+            try {
+                Many<Game> games = client.games().byUserId(username.trim().toLowerCase(), searchFilter -> searchFilter
+                        .max(max)
                         .rated()
                         .finished()
-                        .lastFen(true);
-            });
-            var returnMe = games.stream().collect(toList());
-            return ToolResponse.success(
-                    new TextContent(returnMe.toString()));
+                        .lastFen(true));
+                var returnMe = games.stream().toList();
+                return ToolResponse.success(
+                        new TextContent(returnMe.toString()));
+            } catch (RuntimeException e) {
+                return ToolResponse.error("Error fetching games from lichess.org: " + e.getMessage());
+            }
         }
 
         @Tool(description = "fetch a random game from lichess.org by a given username")
         public ToolResponse randomGame(
                 @ToolArg(description = "the username to fetch the games") String username,
                 @ToolArg(description = "how many days back to look") int days) {
-            Many<Game> games = client.games().byUserId(username.trim().toLowerCase(), searchFilter -> {
-                searchFilter
-                        .max(100)
+            try {
+                Many<Game> games = client.games().byUserId(username.trim().toLowerCase(), searchFilter -> searchFilter
+                        .max(MAX_GAMES)
                         .since(Instant.now().minus(Duration.ofDays(days)).toEpochMilli())
                         .rated()
                         .lastFen(true)
-                        .finished();
-            });
-            var returnMe = games.stream().collect(toList());
-            Collections.shuffle(returnMe);
-            if(returnMe.isEmpty()) {
+                        .finished());
+                // collect(toList()) rather than toList(): the result is shuffled in place below.
+                var returnMe = games.stream().collect(toList());
+                Collections.shuffle(returnMe);
+                if (returnMe.isEmpty()) {
+                    return ToolResponse.success(
+                            new TextContent("No games found"));
+                }
                 return ToolResponse.success(
-                        new TextContent("No games found"));
+                        new TextContent(returnMe.getFirst().toString()));
+            } catch (RuntimeException e) {
+                return ToolResponse.error("Error fetching games from lichess.org: " + e.getMessage());
             }
-            return ToolResponse.success(
-                    new TextContent(returnMe.getFirst().toString()));
         }
 
         @Tool (description = "returns a string which is a visualization of a chess board representation of the chess position given as FEN")
         public ToolResponse boardFromFen(@ToolArg(description = "FEN of the position to display") String fen) {
-            Board board = Board.fromFEN(fen);
-            return ToolResponse.success(
-                    new TextContent(board.toString()));
+            String position = Fen.normalize(fen);
+            if (!Fen.isValid(position)) {
+                return ToolResponse.error(Fen.INVALID_MESSAGE);
+            }
+            try {
+                Board board = Board.fromFEN(position);
+                return ToolResponse.success(
+                        new TextContent(board.toString()));
+            } catch (RuntimeException e) {
+                return ToolResponse.error("Could not render the position: " + e.getMessage());
+            }
         }
 }

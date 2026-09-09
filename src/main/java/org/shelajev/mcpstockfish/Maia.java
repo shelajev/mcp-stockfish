@@ -35,15 +35,23 @@ public class Maia {
     ToolResponse whatMoveWouldHumanPlay(@ToolArg(description = "FEN of the position to analyse") String fen,
                               @ToolArg(description = "Elo rating to condition Maia3 with, from 0 to 5000") int rating) {
 
+        String position = Fen.normalize(fen);
+        if (!Fen.isValid(position)) {
+            return ToolResponse.error(Fen.INVALID_MESSAGE);
+        }
+
         try {
-            return ToolResponse.success(new TextContent(runMaia3(fen, rating)));
+            return ToolResponse.success(new TextContent(runMaia3(position, rating)));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return ToolResponse.error("Interrupted while running Maia3");
         } catch (Exception e) {
-            return ToolResponse.success(new TextContent("Error running Maia3: " + e.getMessage()));
+            return ToolResponse.error("Error running Maia3: " + e.getMessage());
         }
     }
 
     private String runMaia3(String fen, int rating) throws IOException, InterruptedException {
-        int elo = Math.max(0, Math.min(5000, rating));
+        int elo = Math.clamp(rating, 0, 5000);
         int timeoutSeconds = Integer.parseInt(System.getenv().getOrDefault("MAIA3_TIMEOUT_SECONDS", "60"));
         synchronized (engineLock) {
             try {
@@ -56,11 +64,12 @@ public class Maia {
     }
 
     private String runWithPersistentEngine(String fen, int elo, int timeoutSeconds) throws IOException, InterruptedException {
-        StringBuilder output = new StringBuilder();
         Instant deadline = Instant.now().plus(Duration.ofSeconds(timeoutSeconds));
 
-        ensureEngine(output, deadline);
+        ensureEngine(deadline);
 
+        // Collected after the handshake so the first call on a cold engine does not return the UCI banner.
+        StringBuilder output = new StringBuilder();
         send(writer, "setoption name Elo value " + elo);
         send(writer, "position fen " + fen);
         send(writer, "go");
@@ -69,7 +78,7 @@ public class Maia {
         return output.toString();
     }
 
-    private void ensureEngine(StringBuilder output, Instant deadline) throws IOException, InterruptedException {
+    private void ensureEngine(Instant deadline) throws IOException, InterruptedException {
         if (process != null && process.isAlive() && initialized) {
             return;
         }
@@ -96,8 +105,9 @@ public class Maia {
         writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
         reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
 
+        StringBuilder handshake = new StringBuilder();
         send(writer, "uci");
-        readUntil(reader, output, "uciok", deadline);
+        readUntil(reader, handshake, "uciok", deadline);
         initialized = true;
     }
 
@@ -115,7 +125,8 @@ public class Maia {
             }
             String line = reader.readLine();
             if (line == null) {
-                break;
+                throw new IOException("Maia3 exited before emitting " + expected
+                        + (output.isEmpty() ? " and produced no output" : "; output so far: " + output.toString().strip()));
             }
             output.append(line).append('\n');
             if (line.contains(expected)) {

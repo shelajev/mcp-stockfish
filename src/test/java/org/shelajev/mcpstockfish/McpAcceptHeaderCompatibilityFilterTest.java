@@ -10,6 +10,8 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
@@ -49,6 +51,19 @@ class McpAcceptHeaderCompatibilityFilterTest {
         assertTrue(response.body().contains("\"protocolVersion\":\"2025-06-18\""), response.body());
     }
 
+    /**
+     * The extension matches media types exactly, so wildcard clients such as curl used to be
+     * rejected with a 400 even though they would happily read a JSON response.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = { "*/*", "application/*", "application/json;q=0.9", "*/*, text/event-stream" })
+    void acceptsWildcardClients(String accept) throws Exception {
+        HttpResponse<String> response = initialize("2026-07-28", accept);
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertTrue(response.body().contains("\"protocolVersion\":\"2026-07-28\""), response.body());
+    }
+
     private HttpResponse<String> initialize(String protocolVersion, String accept) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(mcpEndpoint)
                 .timeout(Duration.ofSeconds(10))
@@ -56,6 +71,8 @@ class McpAcceptHeaderCompatibilityFilterTest {
                 .header("Accept", accept)
                 .POST(HttpRequest.BodyPublishers.ofString(INITIALIZE_REQUEST_TEMPLATE.formatted(protocolVersion)))
                 .build();
-        return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+        try (HttpClient httpClient = HttpClient.newHttpClient()) {
+            return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        }
     }
 }
