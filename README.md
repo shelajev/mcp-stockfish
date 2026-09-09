@@ -230,6 +230,7 @@ Recommended Cloud Run settings:
 - Try 2 CPU and 2 GiB memory first for Stockfish plus the default Maia3 79M model. Raise memory to 3 GiB or 4 GiB only if Cloud Run reports OOMs or Maia cold-start failures.
 - Treat the service as stateless. The container has Stockfish, Maia3, and the selected Maia3 checkpoint baked into the image.
 - Consider authentication before exposing it publicly; the tools can consume external Lichess quota and CPU.
+- CORS is disabled by default. Browsers are not MCP clients, so leave it off unless a browser page calls the endpoint. To enable it, set `MCP_CORS_ENABLED=true` **and** `MCP_CORS_ORIGINS` to an explicit origin list; Quarkus allows every origin when the origin list is left unset.
 
 The checked-in `cloudbuild.yaml` deploys with `--allow-unauthenticated` so MCP clients can reach the endpoint without Google identity tokens. If you remove that flag, clients must send a valid Cloud Run identity token in the `Authorization` header before MCP traffic reaches the server.
 
@@ -252,7 +253,7 @@ The MCP server provides several tools for chess analysis and interaction with ch
    - Description: Fetches the last games from lichess.org by a given username.
    - Parameters:
      - `username`: The username to fetch the games for.
-     - `n`: How many games to fetch.
+     - `n`: How many games to fetch, clamped to 1-100.
 
 2. **randomGame**
    - Description: Fetches a random game from lichess.org by a given username.
@@ -271,4 +272,19 @@ The MCP server provides several tools for chess analysis and interaction with ch
    - Description: Uses the Maia3 chess engine to predict what move a human player would make in a given position.
    - Parameters:
      - `fen`: FEN notation of the chess position to analyze.
-     - `rating`: Elo rating to condition Maia3 with (from 0 to 5000).
+     - `rating`: Elo rating to condition Maia3 with, clamped to 0-5000.
+
+## FEN Validation
+
+Every tool that takes a `fen` argument validates it against a strict allowlist before any engine
+starts: eight ranks of piece letters and digits, a side to move, castling rights, an en passant
+square, and optional halfmove and fullmove clocks. Anything else is rejected with an MCP error and
+no subprocess is spawned.
+
+This matters because the Stockfish tool interpolates the FEN into a command string that is run by a
+shell and then by expect. Validating the input is what keeps shell and expect metacharacters out of
+that command; do not relax it to a substring check or an escape pass. `FenTest` covers the accepted
+syntax and a set of injection payloads, `FenGuardTest` asserts that each tool refuses them without
+starting an engine, and `StockfishEngineTest` runs the real engine end to end and checks that a
+payload leaves no trace on the filesystem. The engine test is skipped when stockfish and expect are
+not on the PATH, so a plain checkout still builds.
